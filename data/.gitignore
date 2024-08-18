@@ -1,0 +1,12 @@
+# Ignore everything
+*
+  
+# But not these files...
+!.gitignore
+!CGPI.csv
+!CPI.csv
+!LCI.csv
+# etc...
+
+# ...even if they are in subdirectories
+!*/
