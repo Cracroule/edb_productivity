@@ -18,6 +18,9 @@ all_outputs <- c("nb_connections", "length_circuit", "length_overhead",
                  "length_underground", "mva_circuit", "mva_overhead", "mva_underground",
                  "transformers", "energy_delivered", "max_demand", "saidi_unplanned_norm")
 
+# precompute correlation matrix
+outputs_cor <- cor(dt[, all_outputs, with=F])
+
 # aggregate the data to help dynamic filtering
 dt_industry <- aggregate_data_by(dt, by="disc_yr") # implies: group edbs
 dt_industry_status <- aggregate_data_by(dt, by=c("disc_yr", "status")) # implies: group edb/status
@@ -44,16 +47,18 @@ ui <- dashboardPage(
     sidebarMenu(
       menuItem("Introduction", tabName = "Introduction", icon=icon("indent")),
       menuItem("Data", tabName= "Data", icon = icon("database"), 
-               lapply(c("Inputs", "Outputs"), function(ft) {menuSubItem(ft, tabName = ft)})
+               menuSubItem("Inputs", tabName = "Inputs"),
+               menuSubItem("Outputs", tabName = "Outputs"),
+               menuSubItem("Correlation of outputs", tabName = "Outputs_correlation")
       ),
-      # do.call(menuItem, 
-      #         list(text="Data", tabName = "Data", icon = icon("database"), 
-      #              lapply(c("Inputs", "Outputs"), function(ft) {menuSubItem(ft, tabName = ft)}))
-      # ),
-      # menuItem("USArrests", tabName = "usarrests", icon = icon("flag"),
-      #          menuSubItem("Assault", tabName = "Assault"),
-      #          menuSubItem("Murder", tabName = "Murder"),
-      #          menuSubItem("Rape", tabName = "Rape"))
+      menuItem("Industry Productivity", tabName= "Productivity", icon = icon("chart-line"), 
+               menuSubItem("Productivity", tabName = "Productivity_industry"),
+               menuSubItem("DIY models", tabName = "DIY_models_industry")
+      ),
+      menuItem("Productivity Benchmarking", tabName= "Benchmarking", icon = icon("chart-simple"),
+               menuSubItem("Benchmarking", tabName = "Benchmarking"),
+               menuSubItem("DIY models", tabName = "DIY_models_benchmarking")
+      ),
       do.call(menuItem, 
               list(text="USArrests", tabName = "usarrests", icon = icon("flag"), 
                    lapply(arrest_fts, function(ft) {menuSubItem(ft, tabName = ft)}))
@@ -92,6 +97,35 @@ ui <- dashboardPage(
                 column(12, h4("Subtitle: More details about Outputs here"))
               ),
               generate_matrix_plots_shiny_display(all_outputs, n_columns = 3)
+      ),
+      tabItem(tabName = "Outputs_correlation",
+              fluidRow(column(width = 9,  h1("Correlation of Outputs"))),
+              fluidRow(
+                column(12, h4("Some outputs are strongly correlated together;"))
+              ),
+              fluidRow(plotOutput("cor_plot", width = "100%"))
+              # fluidRow(
+              #   column(12, plotOutput("cor_plot"))
+              # )
+              ),
+      
+      tabItem(tabName = "DIY_models_industry",
+              fluidRow(column(width = 9,  h1("Make your own model"))),
+              fluidRow(
+                column(12, h4("Pick your input and outputs and calibrate a Cobb-Douglas model"))
+              ),
+              fluidRow(
+                box(checkboxGroupInput("picked_outputs_industry", label = "Choice of Outputs", 
+                                       choices = all_outputs,
+                                       selected = c("nb_connections", "length_circuit"))),
+                box(radioButtons("picked_input_industry", label = "Pick an Input",
+                                 choices = list("Total Annual Cost (real)" = "annual_charge_real", 
+                                                "Opex (real)" = "opex_real")),
+                    tags$br(), tags$br(), tags$br(),
+                    actionButton("perform_regression_industry", label = "Perform Regression"))),
+              fluidRow(column(width=12, offset=1, box(
+                htmlOutput("model_summary_table_industry"), width=8, 
+                title = "Calibrated Cobb Douglas Model", solidHeader = T, status = "primary")))
       ),
       
       tabItem(tabName = "Assault", 
@@ -134,18 +168,31 @@ server <- function(input, output) {
     })
   })
   
-  # lapply(all_inputs, function(nm) {
-  #   output[[paste0("plot_", nm)]] <- renderPlot({
-  #     l_plots[[nm]]
-  #   })
-  # })
-
-  # lapply(all_outputs, function(nm) {
-  #   output[[paste0("plot_", nm)]] <- renderPlot({
-  #     l_plots[[nm]]
-  #   })
-  # })
-
+  # Generate and render the correlation plot
+  output$cor_plot <- renderPlot({
+    cor_plot <- corrplot::corrplot(outputs_cor, method="number") 
+  }, height = 600, width = 600)
+  
+  
+  # Reactive value to store result
+  industry_diy_model <- reactiveVal()
+  
+  # Observe event for action button
+  observeEvent(input$perform_regression_industry, {
+    # Perform computation based on selected options
+    formula_str <- paste0("I(log(", input$picked_input_industry, ")) ~ ", 
+                          paste0("I(log(", input$picked_outputs_industry, "))", collapse = " + "))
+    m <- glm(data=dt, formula_str)
+    m_dt <- setnames(as.data.table(
+      modelsummary::modelsummary(m, output="data.frame", estimate="{estimate}{stars} ({std.error})", 
+                                 statistic = NULL, coef_rename = F)), "(1)", "value")[]
+    
+    # Update result reactive value
+    industry_diy_model(m_dt)
+  })
+  
+  # Render result text
+  output$model_summary_table_industry <- renderTable(industry_diy_model())
   
   for (ft in arrest_fts) {
     # Use a closure to capture the value of ft for each iteration

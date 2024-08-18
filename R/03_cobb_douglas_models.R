@@ -12,18 +12,35 @@ all_outputs <- c("nb_connections", "length_circuit", "length_overhead",
                  "transformers", "energy_delivered", "max_demand", "saidi_unplanned_norm")
 
 # Correlogram as numbers
-outputs_cor <-cor(dt[disc_yr==2023, all_outputs, with=F])
+outputs_cor <- cor(dt[disc_yr==2023, all_outputs, with=F])
 corrplot::corrplot(outputs_cor, method="number")
 
 models <- list()
 models[["icp"]] <- glm(data=dt,
-                                 "I(log(annual_charge_real)) ~ I(log(nb_connections))")
+                       "I(log(annual_charge_real)) ~ I(log(nb_connections))")
 models[["icp + circuit"]] <- glm(data=dt, 
                                  "I(log(annual_charge_real)) ~ I(log(nb_connections)) + I(log(length_circuit))")
 models[["icp + circuit + power"]] <- glm(data=dt, 
                                  "I(log(annual_charge_real)) ~ I(log(nb_connections)) + I(log(length_circuit)) + I(log(mva_underground))")
-summary(m1)
-summary(m2)
+summary(models[["icp"]])
+summary(models[["icp + circuit"]])
+summary(models[["icp + circuit + power"]])
+
+modelsummary::modelsummary(models[["icp + circuit + power"]])
+modelsummary::modelsummary(models, output="data.frame", stars = T, statistic = NULL)
+modelsummary::modelsummary(models, output="default")
+
+picked_input <- "opex_real"
+picked_outputs <- c("nb_connections", "length_circuit")
+
+formula_str <- paste0("I(log(", picked_input, ")) ~ ", paste0("I(log(", picked_outputs, "))", collapse = " + "))
+m <- glm(data=dt, formula_str)
+dt_res <- setnames(as.data.table(
+  modelsummary::modelsummary(m, output="data.frame", estimate="{estimate}{stars} ({std.error})", 
+                             statistic = NULL, coef_rename = F)), "(1)", "value")[]
+
+modelsummary::modelsummary(models, output="data.frame", stars = T, statistic = NULL)
+
 
 # work on artificial forecast data that does not allow to account for time (which is allocated to inefficiency)
 # we store the actual year in `year` but use the base year to make a forecast
