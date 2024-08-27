@@ -1,3 +1,5 @@
+source("R/00_plots.R")
+
 # create an artificial dataset with same content as input dt, but adds aggregation
 # for all industry and for exempt vs non exempt
 # assume dt loaded as below
@@ -5,7 +7,7 @@
 aggregate_data_by <- function(dt, by, w_avg_variables=NULL) {
   # compute either the sum or the weighted average to aggregate the data for the whole industry
   group_variables <- c("disc_yr", "edb", "status")
-  stopifnot(all(by %in% group_variables))
+  # stopifnot(all(by %in% group_variables))
   
   if (is.null(w_avg_variables)) {
     inflation_variables <- c("ppi_real", "lci_real", "cgpi_real")
@@ -14,7 +16,7 @@ aggregate_data_by <- function(dt, by, w_avg_variables=NULL) {
   }
   
   all_edb_variables <- setdiff(names(dt), group_variables)
-  merge(dt[, lapply(.SD, sum), by=by, .SDcols=setdiff(all_edb_variables, w_avg_variables)],
+  merge(dt[, lapply(.SD, sum), by=by, .SDcols=setdiff(all_edb_variables, unique(c(by, w_avg_variables)))],
         dt[, lapply(.SD, weighted.mean, nb_connections), by=by, .SDcols=w_avg_variables])
 }
 
@@ -33,9 +35,10 @@ generate_visualisation_plots <- function(dt, display_variables=NULL, filters=NUL
     }
   }
   l_plots <- sapply(display_variables, function(nm) {
-    ggplot(dt, aes(x=get(x_nm), y=get(nm))) + xlab(x_nm) +
-      geom_line(color="steelblue", linewidth=1.5) + theme_minimal() + ylab(nm) + ggtitle(nm) +
-      scale_x_continuous(breaks = scales::pretty_breaks()) + ylim(c(0, 1.25*max(dt[[nm]])))
+    generate_plot_time_series(dt, nm, x_nm=x_nm)
+    # ggplot(dt, aes(x=get(x_nm), y=get(nm))) + xlab(x_nm) +
+    #   geom_line(color="steelblue", linewidth=1.5) + theme_minimal() + ylab(nm) + ggtitle(nm) +
+    #   scale_x_continuous(breaks = scales::pretty_breaks()) + ylim(c(0, 1.25*max(dt[[nm]])))
   }, simplify = F, USE.NAMES = T)
   l_plots
 }

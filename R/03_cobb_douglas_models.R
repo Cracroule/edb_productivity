@@ -50,6 +50,7 @@ for (m_nm in names(models)) {
   dt_f[, (paste0(m_nm)) := get(paste0("model_outputs_value_[", m_nm, "]"))/get("annual_charge_real")]
 }
 
+group_variables_ <- c("year", "edb", "status")
 dt_prod_idx <- melt(dt_f, id.vars=group_variables_, measure.vars = paste0(names(models)), 
                      value.name = "prod_index", variable.name = "outputs")
 
@@ -77,6 +78,23 @@ ggplot(dt_prod_idx[status == "Exempt"], aes(x=year, y=prod_index, color=outputs,
   # theme(strip.background=element_rect(colour="black", fill="#ffe6cc")) +
   facet_wrap(~edb) + scale_color_discrete(type=blue_colors) 
 
+picked_outputs <- "icp + circuit + power"
+dt_f[status == "NonExempt" & year== 2023]
+ggplot(dt_f[status == "NonExempt" & year== 2023], 
+       aes(x=log(annual_charge_real), y=log(get(paste0("model_outputs_value_[", picked_outputs,"]"))))) +
+  ylab(paste0("outputs [", picked_outputs, "] (log)")) + xlab("annual_charge_real (log)") + 
+  geom_point() + theme_minimal()
+
+ggplot(dt_f[year== 2023], 
+       aes(x=log(annual_charge_real), y=log(get(paste0("model_outputs_value_[", picked_outputs,"]"))))) +
+  ylab(paste0("outputs [", picked_outputs, "] (log)")) + xlab("annual_charge_real (log)") + 
+  geom_point() + theme_minimal()
+
+ggplot(dt_f[year== 2023], 
+       aes(x=annual_charge_real, y=get(paste0("model_outputs_value_[", picked_outputs,"]")))) +
+  ylab(paste0("outputs [", picked_outputs, "] (log)")) + xlab("annual_charge_real (log)") + 
+  geom_point() + theme_minimal()
+
 
 #### Same for overall industry
 ## Please note there is an "issue" with economy of scales
@@ -90,7 +108,7 @@ ggplot(dt_prod_idx[status == "Exempt"], aes(x=year, y=prod_index, color=outputs,
 ## to illustrate what is the actual efficiency of NZ industry (low) compared to what it *could* be according to the model with 
 ## unified EDB
 
-group_variables_ <- c("year", "edb", "status")
+
 all_edb_variables <- setdiff(names(dt_f), group_variables_)
 w_avg_variables_ <- c("saidi_unplanned", "saidi_planned", "saidi_total_norm", "saidi_unplanned_norm", 
                      "cgpi_real", "ppi_real", "lci_real", names(models))

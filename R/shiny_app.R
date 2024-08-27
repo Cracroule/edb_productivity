@@ -125,7 +125,10 @@ ui <- dashboardPage(
                     actionButton("perform_regression_industry", label = "Perform Regression"))),
               fluidRow(column(width=12, offset=1, box(
                 htmlOutput("model_summary_table_industry"), width=8, 
-                title = "Calibrated Cobb Douglas Model", solidHeader = T, status = "primary")))
+                title = "Calibrated Cobb Douglas Model", solidHeader = T, status = "primary"))),
+              fluidRow(column(width=12, box(
+                plotOutput("prod_index_industry"), width=12, 
+                title = "Productivity Index for the EDB Industry", solidHeader = T, status = "primary")))
       ),
       
       tabItem(tabName = "Assault", 
@@ -172,11 +175,7 @@ server <- function(input, output) {
   output$cor_plot <- renderPlot({
     cor_plot <- corrplot::corrplot(outputs_cor, method="number") 
   }, height = 600, width = 600)
-  
-  
-  # Reactive value to store result
-  industry_diy_model <- reactiveVal()
-  
+
   # Observe event for action button
   observeEvent(input$perform_regression_industry, {
     # Perform computation based on selected options
@@ -187,13 +186,34 @@ server <- function(input, output) {
       modelsummary::modelsummary(m, output="data.frame", estimate="{estimate}{stars} ({std.error})", 
                                  statistic = NULL, coef_rename = F)), "(1)", "value")[]
     
-    # Update result reactive value
-    industry_diy_model(m_dt)
+    # work on artificial forecast data that does not allow to account for time (which is allocated to inefficiency)
+    # we store the actual year in `year` but use the base year to make a forecast
+    dt_f <- data.table(dt)[, year := disc_yr][, disc_yr := min(dt$disc_yr)] # disc_yr is set to beginning of the period
+    dt_f[, (paste0("model_outputs_value")) := exp(predict(m, newdata=dt_f, type="response"))]
+    # dt_f[, (paste0(m_nm)) := get(paste0("model_outputs_value_[", m_nm, "]"))/get("annual_charge_real")]
+
+    dt_all_f1 <- aggregate_data_by(dt_f, by="year") # implies: group edbs
+    dt_all_f2 <- aggregate_data_by(dt_f, by=c("year", "status")) # implies: group edb/status
+    dt_all_f1[, `:=`(status="All", edb="All")]
+    dt_all_f2[status == "Exempt", edb:="All - Exempt"]
+    dt_all_f2[status == "NonExempt", edb:="All - Non-Exempt"]
+    dt_all_f <- rbindlist(list(dt_all_f2, dt_all_f1), use.names = T)
+    dt_all_f[, prod_index := get(paste0("model_outputs_value"))/get("annual_charge_real")]
+
+    output$model_summary_table_industry <- renderTable(m_dt)
+    
+    output$prod_index_industry <- renderPlot({
+      ggplot(dt_all_f, aes(x=year, y=prod_index)) +
+      geom_line(linewidth=1.2) + 
+      ggtitle(paste0("Productivity index")) + 
+      scale_x_continuous(breaks = scales::pretty_breaks()) + 
+      ylim(c(0, 1.2*max(dt_all_f$prod_index))) +
+      theme_minimal() +
+      facet_wrap(~status)
+    })
   })
   
-  # Render result text
-  output$model_summary_table_industry <- renderTable(industry_diy_model())
-  
+
   for (ft in arrest_fts) {
     # Use a closure to capture the value of ft for each iteration
     local({
