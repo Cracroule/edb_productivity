@@ -42,16 +42,6 @@ dt_industry_status[status == "NonExempt", edb:="All - Non-Exempt"]
 dt_display <- rbindlist(list(dt, dt_industry, dt_industry_status), use.names = T)
 
 
-# the below uses many r tricks, but the idea is that for 2 datasets:
-# we display some systematic content, i.e.:
-# - we create one menu for each dataset
-# - we create the below submenus for each dataset
-# - we create a plot (some content) for each submenu
-# - we make this whole thing work!
-cars_fts <- c("mpg", "cyl", "disp", "hp")
-arrest_fts <- c("Assault", "Murder", "Rape")
-
-
 # Define UI
 ui <- dashboardPage(
   dashboardHeader(title = "EDB Productivity"),
@@ -71,14 +61,10 @@ ui <- dashboardPage(
       menuItem("Productivity Benchmarking", tabName= "Benchmarking", icon = icon("chart-simple"),
                menuSubItem("Benchmarking", tabName = "Benchmarking"),
                menuSubItem("DIY models", tabName = "DIY_models_benchmarking")
-      ),
-      do.call(menuItem, 
-              list(text="USArrests", tabName = "usarrests", icon = icon("flag"), 
-                   lapply(arrest_fts, function(ft) {menuSubItem(ft, tabName = ft)}))
       )
     )
   ),
- 
+  
   dashboardBody(
     
     tabItems(
@@ -125,7 +111,7 @@ ui <- dashboardPage(
                 column(12, h4("Some outputs are strongly correlated together;"))
               ),
               fluidRow(plotOutput("cor_plot", width = "100%"))
-              ),
+      ),
       
       tabItem(tabName = "Productivity_industry",
               fluidRow(column(width = 9,  h1("Productivity"))),
@@ -167,14 +153,7 @@ ui <- dashboardPage(
               fluidRow(column(width=12, htmlOutput("dt_models_benchmark"))),
               fluidRow(column(width=12, box(plotOutput("pl_prod_idx_edb_nonexempt"), width = 12))),
               fluidRow(column(width=12, box(plotOutput("pl_prod_idx_edb_exempt"), width = 12)))
-      ),
-      
-      tabItem(tabName = "Assault", 
-              fluidRow(column(width = 12, plotOutput(paste0("plot_", "Assault"))))),
-      tabItem(tabName = "Murder", 
-              fluidRow(column(width = 12, plotOutput(paste0("plot_", "Murder"))))),
-      tabItem(tabName = "Rape", 
-              fluidRow(column(width = 12, plotOutput(paste0("plot_", "Rape")))))
+      )
     )
   )
 )
@@ -198,7 +177,7 @@ server <- function(input, output) {
   output[["dt_models_benchmark"]] <- renderTable({results_cache[["dt_models"]]})
   output[["pl_prod_idx_edb_nonexempt"]] <- renderPlot({results_cache[["pl_prod_idx_edb_nonexempt"]]})
   output[["pl_prod_idx_edb_exempt"]] <- renderPlot({results_cache[["pl_prod_idx_edb_exempt"]]})
-
+  
   # # Create a reactive expression for the Inputs filtered plots
   dynamic_plots_inputs <- reactive({
     generate_visualisation_plots(dt_display, display_variables = all_inputs, filters=list(edb=input$edb_filter_inputs))
@@ -208,7 +187,7 @@ server <- function(input, output) {
   dynamic_plots_outputs <- reactive({
     generate_visualisation_plots(dt_display, display_variables = all_outputs, filters=list(edb=input$edb_filter_outputs))
   })
-
+  
   # Create output for each plot based on the Inputs reactive expression
   observe({
     l_plots_inputs <- dynamic_plots_inputs()
@@ -229,7 +208,7 @@ server <- function(input, output) {
   output$cor_plot <- renderPlot({
     cor_plot <- corrplot::corrplot(outputs_cor, method="number") 
   }, height = 600, width = 600)
-
+  
   # Observe event for action button
   observeEvent(input$perform_regression_industry, {
     # Perform computation based on selected options
@@ -245,7 +224,7 @@ server <- function(input, output) {
     dt_f <- data.table(dt)[, year := disc_yr][, disc_yr := min(dt$disc_yr)] # disc_yr is set to beginning of the period
     dt_f[, (paste0("model_outputs_value")) := exp(predict(m, newdata=dt_f, type="response"))]
     # dt_f[, (paste0(m_nm)) := get(paste0("model_outputs_value_[", m_nm, "]"))/get("annual_charge_real")]
-
+    
     dt_all_f1 <- aggregate_data_by(dt_f, by="year") # implies: group edbs
     dt_all_f2 <- aggregate_data_by(dt_f, by=c("year", "status")) # implies: group edb/status
     dt_all_f1[, `:=`(status="All", edb="All")]
@@ -253,36 +232,20 @@ server <- function(input, output) {
     dt_all_f2[status == "NonExempt", edb:="All - Non-Exempt"]
     dt_all_f <- rbindlist(list(dt_all_f2, dt_all_f1), use.names = T)
     dt_all_f[, prod_index := get(paste0("model_outputs_value"))/get("annual_charge_real")]
-
+    
     output$model_summary_table_industry <- renderTable(m_dt)
     
     output$prod_index_industry <- renderPlot({
       ggplot(dt_all_f, aes(x=year, y=prod_index)) +
-      geom_line(linewidth=1.2) + 
-      ggtitle(paste0("Productivity index")) + 
-      scale_x_continuous(breaks = scales::pretty_breaks()) + 
-      ylim(c(0, 1.2*max(dt_all_f$prod_index))) +
-      theme_minimal() +
-      facet_wrap(~status)
+        geom_line(linewidth=1.2) + 
+        ggtitle(paste0("Productivity index")) + 
+        scale_x_continuous(breaks = scales::pretty_breaks()) + 
+        ylim(c(0, 1.2*max(dt_all_f$prod_index))) +
+        theme_minimal() +
+        facet_wrap(~status)
     })
   })
-  
 
-  for (ft in arrest_fts) {
-    # Use a closure to capture the value of ft for each iteration
-    local({
-      my_ft <- ft
-      p <-ggplot(USArrests, aes_string(x = my_ft)) +
-        geom_histogram(fill = "red", color = "black") +
-        labs(title = paste0("Distribution of ", my_ft), x = my_ft, y = "Frequency") +
-        theme_minimal()
-      print(p)
-      print(ft)
-      output[[paste0("plot_", my_ft)]] <- renderPlot({
-        p
-      })
-    })
-  }
 }
 
 # Run the application

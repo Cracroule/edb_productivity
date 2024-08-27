@@ -11,6 +11,10 @@ all_outputs <- c("nb_connections", "length_circuit", "length_overhead",
                  "length_underground", "mva_circuit", "mva_overhead", "mva_underground",
                  "transformers", "energy_delivered", "max_demand", "saidi_unplanned_norm")
 
+# create a cache to store all results we intend to display on the app
+# ideally obtained through functions rather than pre run...
+results_cache <- list()
+
 # Correlogram as numbers
 outputs_cor <- cor(dt[disc_yr==2023, all_outputs, with=F])
 corrplot::corrplot(outputs_cor, method="number")
@@ -39,8 +43,9 @@ dt_res <- setnames(as.data.table(
   modelsummary::modelsummary(m, output="data.frame", estimate="{estimate}{stars} ({std.error})", 
                              statistic = NULL, coef_rename = F)), "(1)", "value")[]
 
-modelsummary::modelsummary(models, output="data.frame", stars = T, statistic = NULL)
-
+results_cache[["dt_models"]] <- modelsummary::modelsummary(
+  models, output="data.frame", statistic = NULL, estimate="{estimate}{stars} ({std.error})")
+results_cache[["dt_models"]]
 
 # work on artificial forecast data that does not allow to account for time (which is allocated to inefficiency)
 # we store the actual year in `year` but use the base year to make a forecast
@@ -57,7 +62,8 @@ dt_prod_idx <- melt(dt_f, id.vars=group_variables_, measure.vars = paste0(names(
 blue_colors <- c("#2596a1", "#0d72a6", "#49b7d2", "#93dde6", "steelblue1", "steelblue4", 
                  "cyan2", "#044a85", "#c6edec", "#173d64")
 
-ggplot(dt_prod_idx[status == "NonExempt"], aes(x=year, y=prod_index, color=outputs, group=outputs)) +
+results_cache[["pl_prod_idx_edb_nonexempt"]] <- ggplot(
+  dt_prod_idx[status == "NonExempt"], aes(x=year, y=prod_index, color=outputs, group=outputs)) +
   geom_line(linewidth=1.2, alpha=0.6) + 
   ggtitle(paste0("Productivity index (", "NonExempt", ")")) + 
   scale_x_continuous(breaks = scales::pretty_breaks()) +
@@ -66,9 +72,10 @@ ggplot(dt_prod_idx[status == "NonExempt"], aes(x=year, y=prod_index, color=outpu
   # theme_bw() + 
   # theme(strip.background=element_rect(colour="black", fill="#ffe6cc")) +
   facet_wrap(~edb) + scale_color_discrete(type=blue_colors) 
+results_cache[["pl_prod_idx_edb_nonexempt"]]
 
-
-ggplot(dt_prod_idx[status == "Exempt"], aes(x=year, y=prod_index, color=outputs, group=outputs)) +
+results_cache[["pl_prod_idx_edb_exempt"]] <- ggplot(
+  dt_prod_idx[status == "Exempt"], aes(x=year, y=prod_index, color=outputs, group=outputs)) +
   geom_line(linewidth=1.2, alpha=0.6) + 
   ggtitle(paste0("Productivity index (", "Exempt", ")")) + 
   scale_x_continuous(breaks = scales::pretty_breaks()) +
@@ -77,18 +84,15 @@ ggplot(dt_prod_idx[status == "Exempt"], aes(x=year, y=prod_index, color=outputs,
   # theme_bw() + 
   # theme(strip.background=element_rect(colour="black", fill="#ffe6cc")) +
   facet_wrap(~edb) + scale_color_discrete(type=blue_colors) 
+results_cache[["pl_prod_idx_edb_exempt"]] 
+
 
 picked_outputs <- "icp + circuit + power"
-dt_f[status == "NonExempt" & year== 2023]
-ggplot(dt_f[status == "NonExempt" & year== 2023], 
+results_cache[["pl_prod_idx_edb_frontier"]] <- ggplot(dt_f[year== 2023], 
        aes(x=log(annual_charge_real), y=log(get(paste0("model_outputs_value_[", picked_outputs,"]"))))) +
   ylab(paste0("outputs [", picked_outputs, "] (log)")) + xlab("annual_charge_real (log)") + 
-  geom_point() + theme_minimal()
-
-ggplot(dt_f[year== 2023], 
-       aes(x=log(annual_charge_real), y=log(get(paste0("model_outputs_value_[", picked_outputs,"]"))))) +
-  ylab(paste0("outputs [", picked_outputs, "] (log)")) + xlab("annual_charge_real (log)") + 
-  geom_point() + theme_minimal()
+  geom_point(color="steelblue") + theme_minimal()
+results_cache[["pl_prod_idx_edb_frontier"]]
 
 ggplot(dt_f[year== 2023], 
        aes(x=annual_charge_real, y=get(paste0("model_outputs_value_[", picked_outputs,"]")))) +
@@ -128,7 +132,7 @@ dt_prod_idx_all <- melt(dt_all_f, id.vars=c("year", "status"), measure.vars = pa
                              value.name = "prod_index", variable.name = "outputs")
 
 
-ggplot(dt_prod_idx_all, aes(x=year, y=prod_index, color=outputs, group=outputs)) +
+results_cache[["pl_prod_idx"]] <- ggplot(dt_prod_idx_all, aes(x=year, y=prod_index, color=outputs, group=outputs)) +
   geom_line(linewidth=1.2, alpha=0.6) + 
   ggtitle(paste0("Productivity index")) + 
   scale_x_continuous(breaks = scales::pretty_breaks()) + 
@@ -137,4 +141,5 @@ ggplot(dt_prod_idx_all, aes(x=year, y=prod_index, color=outputs, group=outputs))
   # theme_bw() + 
   # theme(strip.background=element_rect(colour="black", fill="#ffe6cc")) +
   facet_wrap(~status) + scale_color_discrete(type=blue_colors) 
+results_cache[["pl_prod_idx"]]
 
