@@ -1,7 +1,7 @@
 # :chart_with_upwards_trend: :bulb: EDB Productivity :bulb: :chart_with_upwards_trend:
 :chart_with_upwards_trend: EDB Productivity and Benchmarking. 
 
-:electric_plug: Assess and compare the productivity of local elictricity network providers in New Zealand.
+:electric_plug: Assess and compare the productivity of local electricity network providers in New Zealand.
 
 This project is freely inspired from this [project](https://comcom.govt.nz/regulated-industries/electricity-lines/electricity-distributor-performance-and-data/productivity-and-efficiency-study-of-electricity-distributors) delivered by CEPA.
 
