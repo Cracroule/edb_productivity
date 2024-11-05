@@ -4,7 +4,7 @@ library(echarts4r)
 # generate nice eplot
 # x must behave nicely as a factor... recommend to sort beforehands
 # y must be a numeric
-eplot_bar_groupby <- function(x, y, groupby, stack=T, x_lab=NULL, y_lab=NULL, decimals=3, magic=T) {
+eplot_bar_groupby <- function(dt, x, y, groupby, stack=T, x_lab=NULL, y_lab=NULL, decimals=3, magic=T) {
   stopifnot(!"x__" %in% c(y, groupby)) # we'll create x__, we f*ck it up if it means something already
   if (is.null(y_lab)) y_lab <- y
   if (is.null(x_lab)) x_lab <- x
@@ -23,8 +23,8 @@ eplot_bar_groupby <- function(x, y, groupby, stack=T, x_lab=NULL, y_lab=NULL, de
 
 dt <- melt(data.table(mtcars)[, .(avg_mpg = mean(mpg), avg_hp = mean(hp)), by=cyl], id.var="cyl")
 
-eplot_bar_groupby("cyl", "value", "variable", x_lab = "") 
-eplot_bar_groupby("cyl", "value", "variable", stack = F)
+eplot_bar_groupby(dt, "cyl", "value", "variable", x_lab = "") 
+eplot_bar_groupby(dt, "cyl", "value", "variable", stack = F)
 
 
 
